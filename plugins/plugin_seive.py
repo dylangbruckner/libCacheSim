@@ -17,13 +17,11 @@ class Seive:
 
     def on_hit(self, req: Request):
         if req.obj_id not in self.map_to_nodes:
-            print("error, map not consistent with cache")
             return
         self.map_to_nodes[req.obj_id].accessed = True
 
     def on_miss(self, req: Request):
         if req.obj_id in self.map_to_nodes:
-            print("error, trying to insert node already in cache")
             return
         if req.obj_size <= self.cache_size:
             if not self.head:
@@ -51,7 +49,6 @@ class Seive:
                 self.pointer = self.pointer.left
             else:
                 if self.pointer != self.head:
-                    print("error, list is broken2")
                     return 0
                 self.pointer = self.tail
         
@@ -60,19 +57,16 @@ class Seive:
             self.pointer.right.left = self.pointer.left
         else:
             if self.pointer != self.tail:
-                print("error, list is broken 1")
                 return 0
             self.tail = self.pointer.left
         if self.pointer.left:
             self.pointer.left.right = self.pointer.right
         else:
             if self.pointer != self.head:
-                print("error, list is broken 3")
                 return 0
             self.head = self.pointer.right
         
         if self.pointer.id not in self.map_to_nodes:
-            print("error, map is broken")
             return 0
         del self.map_to_nodes[self.pointer.id]
         id = self.pointer.id
@@ -89,48 +83,45 @@ class Seive:
         if obj_id in self.map_to_nodes:
             node = self.map_to_nodes[obj_id]
             if node.right:
-                node.right.left = .node.left
+                node.right.left = node.left
             else:
                 if node != self.tail:
-                    print("error, list is broken 1")
                     return 0
                 self.tail = node.left
             if node.left:
                 node.left.right = node.right
             else:
                 if node != self.head:
-                    print("error, list is broken 3")
                     return 0
                 self.head = node.right
             if node is self.pointer:
                 self.pointer = node.left if node.left is not None else self.tail
             del self.map_to_nodes[obj_id]
         else:
-            print("error, obj was not in cache")
             pass
 
 
-def cache_init_hook(common_cache_params: CommonCacheParams):
+def init_hook(common_cache_params: CommonCacheParams):
     return Seive(common_cache_params.cache_size)
 
 
-def cache_hit_hook(data: Seive, req: Request):
+def hit_hook(data: Seive, req: Request):
     data.on_hit(req)
 
 
-def cache_miss_hook(data: Seive, req: Request):
+def miss_hook(data: Seive, req: Request):
     data.on_miss(req)
 
 
-def cache_eviction_hook(data: Seive, req: Request):
+def eviction_hook(data: Seive, req: Request):
     return data.evict(req)
 
 
-def cache_remove_hook(data: Seive, obj_id: int):
+def remove_hook(data: Seive, obj_id: int):
     data.on_remove(obj_id)
 
 
-def cache_free_hook(data: Seive):
+def free_hook(data: Seive):
     data.queue.clear()
 
 
@@ -140,18 +131,18 @@ if __name__ == "__main__":
 
     plugin_seive_cache = PluginCache(
         cache_size=1024 * 1024,  # 1 MB
-        cache_init_hook=cache_init_hook,
-        cache_hit_hook=cache_hit_hook,
-        cache_miss_hook=cache_miss_hook,
-        cache_eviction_hook=cache_eviction_hook,
-        cache_remove_hook=cache_remove_hook,
-        cache_free_hook=cache_free_hook,
+        cache_init_hook=init_hook,
+        cache_hit_hook=hit_hook,
+        cache_miss_hook=miss_hook,
+        cache_eviction_hook=eviction_hook,
+        cache_remove_hook=remove_hook,
+        cache_free_hook=free_hook,
         cache_name="seive",
     )
 
     trace = Path(__file__).parent.parent / "data" / "cloudPhysicsIO.vscsi"
     reader = TraceReader(trace=str(trace), trace_type=TraceType.VSCSI_TRACE)
 
-    req_miss_ratio, byte_miss_ratio = plugin_seivecache.process_trace(reader)
+    req_miss_ratio, byte_miss_ratio = plugin_seive_cache.process_trace(reader)
     print(f"Request miss ratio: {req_miss_ratio:.4f}")
     print(f"Byte miss ratio: {byte_miss_ratio:.4f}")
