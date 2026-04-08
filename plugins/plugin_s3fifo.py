@@ -30,7 +30,7 @@ from libcachesim import CommonCacheParams, Request
 class S3FIFOCache:
     def __init__(self, cache_size: int):
         self.cache_size = cache_size
-        self.small_max  = max(1, cache_size // 10)    # 10% for small queue
+        self.small_max  = max(1, cache_size // 33)    # 10% for small queue
         self.ghost_max  = cache_size                   # ghost capacity (bytes)
 
         self.small: deque = deque()   # obj_ids, oldest at left
@@ -87,34 +87,28 @@ class S3FIFOCache:
             self.obj_info[obj_id] = (size, 0)
             self.small_bytes += size
 
-    def evict(self, req: Request) -> int:
-        # --- Phase 1: drain small queue ---
-        # Move freq>=1 objects to main; evict the first freq=0 object.
-        scanned = 0
-        limit = len(self.small)
-        while self.small and scanned <= limit:
+    def _evict_small_one(self) -> int:
+        """Pop from small: freq=0 → evict; freq≥1 → promote to main."""
+        while self.small:
             obj_id = self.small.popleft()
-            scanned += 1
             if obj_id not in self.obj_info:
                 continue
             sz, freq = self.obj_info[obj_id]
             self.small_bytes -= sz
             if freq == 0:
-                # Evict from small → ghost
                 del self.obj_info[obj_id]
                 self._add_to_ghost(obj_id, sz)
                 return obj_id
-            else:
-                # Promote to main (freq reset to 0)
-                self.obj_info[obj_id] = (sz, 0)
-                self.main.appendleft(obj_id)
-                self.main_bytes += sz
+            self.obj_info[obj_id] = (sz, 0)
+            self.main.appendleft(obj_id)
+            self.main_bytes += sz
+        return 0
 
-        # --- Phase 2: evict from main ---
-        limit = len(self.main)
-        scanned = 0
+    def _evict_main_one(self) -> int:
+        """Sweep main: freq=0 → evict; freq≥1 → decrement and reinsert at head."""
+        scanned, limit = 0, len(self.main)
         while self.main and scanned <= limit:
-            obj_id = self.main.pop()  # oldest is at right
+            obj_id = self.main.pop()
             scanned += 1
             if obj_id not in self.obj_info:
                 continue
@@ -123,13 +117,23 @@ class S3FIFOCache:
             if freq == 0:
                 del self.obj_info[obj_id]
                 return obj_id
-            else:
-                # Give second chance: reinsert at head with decremented freq
-                self.obj_info[obj_id] = (sz, freq - 1)
-                self.main.appendleft(obj_id)
-                self.main_bytes += sz
-
+            self.obj_info[obj_id] = (sz, freq - 1)
+            self.main.appendleft(obj_id)
+            self.main_bytes += sz
         return 0
+
+    def evict(self, req: Request) -> int:
+        # Enforce small/main split: if main has grown beyond its 90% target
+        # (due to promotions), drain main first; otherwise drain small.
+        main_max = self.cache_size - self.small_max
+        if self.main_bytes > main_max and self.main:
+            v = self._evict_main_one()
+            if v:
+                return v
+        v = self._evict_small_one()
+        if v:
+            return v
+        return self._evict_main_one()
 
     def on_remove(self, obj_id: int):
         if obj_id not in self.obj_info:

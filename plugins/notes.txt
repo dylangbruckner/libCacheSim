@@ -1,0 +1,4 @@
+I have sumbitted the folloowing algorithms and got the following results:
+s3 fifo with 10%: 28, s3 fifo with 2%: 59, s3 fifo with 4%: 65
+seive: 54%
+arc: 66%

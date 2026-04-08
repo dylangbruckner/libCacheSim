@@ -1,14 +1,28 @@
 """
 ARC (Adaptive Replacement Cache) — Nimrod Megiddo & Dharmendra Modha, FAST '03.
 
-ARC self-tunes between recency (LRU) and frequency (LFU) by maintaining two
-LRU lists—T1 (seen once) and T2 (seen more than once)—and two ghost lists
-B1 and B2 that track recently evicted objects.  A target parameter p adapts
-to observed workload patterns; hitting a B1 ghost promotes p (more space to
-T1) while hitting a B2 ghost demotes p (more space to T2).
+Faithful implementation of the original paper's Algorithm 1, with byte-aware
+ghost-list trimming for variable-size objects.
 
-ARC is particularly effective on storage I/O workloads, where temporal
-locality and frequency patterns both matter.
+Four lists:
+  T1 — recently seen exactly once (LRU; MRU = most recent)
+  T2 — recently seen more than once (LRU; MRU = most recent)
+  B1 — ghost directory for recently evicted T1 objects (stores obj size)
+  B2 — ghost directory for recently evicted T2 objects (stores obj size)
+
+Adaptive parameter p (object count): target number of objects to keep in T1.
+  B1 ghost hit → p += max(1, |B2| / |B1|)   (favour recency / T1)
+  B2 ghost hit → p -= max(1, |B1| / |B2|)   (favour frequency / T2)
+  p is capped to [0, len(T1)+len(T2)] at all times.
+
+REPLACE(in_b2):
+  Evict LRU(T1) → B1  if  len(T1) > p
+                           or (len(T1)==p and inserting a B2-ghost object).
+  Evict LRU(T2) → B2  otherwise.
+
+Ghost lists are trimmed by byte capacity (≤ cache_size bytes each) so they
+cannot grow unboundedly on variable-size workloads while still providing a
+wide observation window proportional to the cache.
 """
 
 from collections import OrderedDict
@@ -17,106 +31,138 @@ from libcachesim import CommonCacheParams, Request
 
 class ARCCache:
     def __init__(self, cache_size: int):
-        self.cache_size = cache_size
-        # Four LRU lists (MRU order: move_to_end = most recent)
-        self.t1: OrderedDict = OrderedDict()   # recently seen once (obj_id -> size)
-        self.t2: OrderedDict = OrderedDict()   # recently seen >=2 (obj_id -> size)
-        self.b1: OrderedDict = OrderedDict()   # ghost of T1 (obj_id -> 1)
-        self.b2: OrderedDict = OrderedDict()   # ghost of T2 (obj_id -> 1)
+        self.c: int = cache_size          # total cache capacity (bytes)
 
-        # p: target fraction for T1 objects, range [0.0, 1.0]
-        # Represents what fraction of the total cache should be T1.
-        self.p: float = 0.5
-        self.ghost_max: int = max(8, cache_size // 16)   # max ghost entries
+        # Live cache: obj_id → size (bytes), ordered LRU → MRU
+        self.t1: OrderedDict = OrderedDict()
+        self.t2: OrderedDict = OrderedDict()
+
+        # Ghost directories: obj_id → size (bytes)
+        self.b1: OrderedDict = OrderedDict()
+        self.b2: OrderedDict = OrderedDict()
+
+        # Byte counters (for ghost trimming and bookkeeping)
+        self.t1b: int = 0
+        self.t2b: int = 0
+        self.b1b: int = 0
+        self.b2b: int = 0
+
+        # p: target NUMBER OF OBJECTS in T1 (paper uses object counts).
+        # Starts at 0 (all frequency); adapts toward recency via ghost hits.
+        self.p: int = 0
 
     # ------------------------------------------------------------------ #
-    # Internal helpers
+    # REPLACE
     # ------------------------------------------------------------------ #
+
     def _replace(self, in_b2: bool) -> int:
-        """Evict one object from T1 or T2 based on the target p."""
-        t1_n = len(self.t1)
-        t2_n = len(self.t2)
-        total = t1_n + t2_n
-        if total == 0:
-            return 0
-        t1_ratio = t1_n / total
+        t1n = len(self.t1)
+        # Evict from T1 when it exceeds target p, or when tied and inserting B2 ghost
+        if self.t1 and (t1n > self.p or (in_b2 and t1n == self.p)):
+            obj_id, sz = self.t1.popitem(last=False)
+            self.t1b -= sz
+            self.b1[obj_id] = sz
+            self.b1b += sz
+            self._trim_b1()
+            return obj_id
 
-        if t1_n > 0 and (t1_ratio > self.p or (in_b2 and t1_ratio == self.p)):
-            # Evict LRU of T1 → B1
-            obj_id, _ = next(iter(self.t1.items()))
-            del self.t1[obj_id]
-            self.b1[obj_id] = 1
-            self._trim_ghost(self.b1)
+        if self.t2:
+            obj_id, sz = self.t2.popitem(last=False)
+            self.t2b -= sz
+            self.b2[obj_id] = sz
+            self.b2b += sz
+            self._trim_b2()
             return obj_id
-        elif self.t2:
-            # Evict LRU of T2 → B2
-            obj_id, _ = next(iter(self.t2.items()))
-            del self.t2[obj_id]
-            self.b2[obj_id] = 1
-            self._trim_ghost(self.b2)
+
+        # Fallback (shouldn't happen in steady state)
+        if self.t1:
+            obj_id, sz = self.t1.popitem(last=False)
+            self.t1b -= sz
+            self.b1[obj_id] = sz
+            self.b1b += sz
+            self._trim_b1()
             return obj_id
-        elif self.t1:
-            obj_id, _ = next(iter(self.t1.items()))
-            del self.t1[obj_id]
-            self.b1[obj_id] = 1
-            self._trim_ghost(self.b1)
-            return obj_id
+
         return 0
 
-    def _trim_ghost(self, ghost: OrderedDict):
-        while len(ghost) > self.ghost_max:
-            ghost.popitem(last=False)
+    def _trim_b1(self):
+        while self.b1b > self.c and self.b1:
+            _, sz = self.b1.popitem(last=False)
+            self.b1b -= sz
+
+    def _trim_b2(self):
+        while self.b2b > self.c and self.b2:
+            _, sz = self.b2.popitem(last=False)
+            self.b2b -= sz
 
     # ------------------------------------------------------------------ #
     # Hook implementations
     # ------------------------------------------------------------------ #
+
     def on_hit(self, req: Request):
         obj_id = req.obj_id
         if obj_id in self.t1:
-            size = self.t1.pop(obj_id)
-            self.t2[obj_id] = size
+            # Promote from T1 → T2 (seen ≥ 2 times now)
+            sz = self.t1.pop(obj_id)
+            self.t1b -= sz
+            self.t2[obj_id] = sz
             self.t2.move_to_end(obj_id)
+            self.t2b += sz
         elif obj_id in self.t2:
+            # Refresh LRU position in T2
             self.t2.move_to_end(obj_id)
 
     def on_miss(self, req: Request):
         obj_id = req.obj_id
-        size = req.obj_size
-        if size > self.cache_size:
+        sz     = req.obj_size
+        if sz > self.c:
             return
 
+        live_n = len(self.t1) + len(self.t2)
+        b1n    = len(self.b1)
+        b2n    = len(self.b2)
+
         if obj_id in self.b1:
-            # Ghost hit in B1 → increase p (favor recency)
-            b1_n = len(self.b1)
-            b2_n = len(self.b2)
-            delta = max(1.0 / max(b1_n, 1), b2_n / max(b1_n, 1)) / (b1_n + b2_n + 1)
-            self.p = min(self.p + delta, 1.0)
-            del self.b1[obj_id]
-            self.t2[obj_id] = size
+            # B1 ghost hit: workload trending toward recency → increase p
+            delta = max(1, b2n // max(b1n, 1))
+            self.p = min(self.p + delta, live_n)
+            ghost_sz = self.b1.pop(obj_id)
+            self.b1b -= ghost_sz
+            # Returning objects go to T2 (seen at least twice)
+            self.t2[obj_id] = sz
             self.t2.move_to_end(obj_id)
+            self.t2b += sz
+
         elif obj_id in self.b2:
-            # Ghost hit in B2 → decrease p (favor frequency)
-            b1_n = len(self.b1)
-            b2_n = len(self.b2)
-            delta = max(1.0 / max(b2_n, 1), b1_n / max(b2_n, 1)) / (b1_n + b2_n + 1)
-            self.p = max(self.p - delta, 0.0)
-            del self.b2[obj_id]
-            self.t2[obj_id] = size
+            # B2 ghost hit: workload trending toward frequency → decrease p
+            delta = max(1, b1n // max(b2n, 1))
+            self.p = max(self.p - delta, 0)
+            ghost_sz = self.b2.pop(obj_id)
+            self.b2b -= ghost_sz
+            # Returning objects go to T2
+            self.t2[obj_id] = sz
             self.t2.move_to_end(obj_id)
+            self.t2b += sz
+
         else:
-            # Brand-new object → T1
-            self.t1[obj_id] = size
+            # Brand-new object → T1 (seen for the first time)
+            self.t1[obj_id] = sz
             self.t1.move_to_end(obj_id)
+            self.t1b += sz
 
     def evict(self, req: Request) -> int:
         in_b2 = req.obj_id in self.b2
         return self._replace(in_b2)
 
     def on_remove(self, obj_id: int):
-        self.t1.pop(obj_id, None)
-        self.t2.pop(obj_id, None)
-        self.b1.pop(obj_id, None)
-        self.b2.pop(obj_id, None)
+        if obj_id in self.t1:
+            self.t1b -= self.t1.pop(obj_id)
+        elif obj_id in self.t2:
+            self.t2b -= self.t2.pop(obj_id)
+        if obj_id in self.b1:
+            self.b1b -= self.b1.pop(obj_id)
+        if obj_id in self.b2:
+            self.b2b -= self.b2.pop(obj_id)
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +194,6 @@ def free_hook(data: ARCCache):
     data.t2.clear()
     data.b1.clear()
     data.b2.clear()
-
 
 
 # ---------------------------------------------------------------------------
