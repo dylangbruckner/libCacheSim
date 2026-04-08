@@ -30,8 +30,8 @@ from libcachesim import CommonCacheParams, Request
 class S3FIFOCache:
     def __init__(self, cache_size: int):
         self.cache_size = cache_size
-        self.small_max  = max(1, cache_size // 33)    # 10% for small queue
-        self.ghost_max  = cache_size                   # ghost capacity (bytes)
+        self.small_max  = max(1, cache_size // 9)    # 10% for small queue
+        self.ghost_max  = cache_size * 4                   # ghost capacity (bytes)
 
         self.small: deque = deque()   # obj_ids, oldest at left
         self.main:  deque = deque()   # obj_ids, oldest at right (appendleft = newest)

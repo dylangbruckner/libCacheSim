@@ -6,6 +6,7 @@ Algorithms tested:
   Classic:    LRU, CLOCK, LRU-2
   Adaptive:   ARC, 2Q, SLRU
   Modern:     S3-FIFO, S3FIFO+SIEVE, W-TinyLFU, LFU-DA
+  New:        S3-FIFO-LRU, MAS3
 
 Workloads:
   1. cloudPhysicsIO.vscsi     – real storage I/O trace (512-byte blocks)
@@ -42,6 +43,9 @@ import plugin_slru
 import plugin_tinylfu
 import plugin_lru2
 import plugin_lfuda
+import plugin_s3fifo_lru
+import plugin_mas3
+import plugin_mas3_fifo
 
 ALGORITHMS = [
     ("FIFO",          plugin_fifo.cache_init_hook,    plugin_fifo.cache_hit_hook,    plugin_fifo.cache_miss_hook,    plugin_fifo.cache_eviction_hook,    plugin_fifo.cache_remove_hook,    plugin_fifo.cache_free_hook),
@@ -56,6 +60,9 @@ ALGORITHMS = [
     ("S3FIFO+SIEVE",  plugin_s3fifo_sieve.init_hook,  plugin_s3fifo_sieve.hit_hook,  plugin_s3fifo_sieve.miss_hook,  plugin_s3fifo_sieve.eviction_hook,  plugin_s3fifo_sieve.remove_hook,  plugin_s3fifo_sieve.free_hook),
     ("W-TinyLFU",     plugin_tinylfu.init_hook,       plugin_tinylfu.hit_hook,       plugin_tinylfu.miss_hook,       plugin_tinylfu.eviction_hook,       plugin_tinylfu.remove_hook,       plugin_tinylfu.free_hook),
     ("LFU-DA",        plugin_lfuda.init_hook,         plugin_lfuda.hit_hook,         plugin_lfuda.miss_hook,         plugin_lfuda.eviction_hook,         plugin_lfuda.remove_hook,         plugin_lfuda.free_hook),
+    ("S3-FIFO-LRU",   plugin_s3fifo_lru.init_hook,    plugin_s3fifo_lru.hit_hook,    plugin_s3fifo_lru.miss_hook,    plugin_s3fifo_lru.eviction_hook,    plugin_s3fifo_lru.remove_hook,    plugin_s3fifo_lru.free_hook),
+    ("MAS3(LRU)",     plugin_mas3.init_hook,          plugin_mas3.hit_hook,          plugin_mas3.miss_hook,          plugin_mas3.eviction_hook,          plugin_mas3.remove_hook,          plugin_mas3.free_hook),
+    ("MAS3-FIFO",     plugin_mas3_fifo.init_hook,     plugin_mas3_fifo.hit_hook,     plugin_mas3_fifo.miss_hook,     plugin_mas3_fifo.eviction_hook,     plugin_mas3_fifo.remove_hook,     plugin_mas3_fifo.free_hook),
 ]
 
 # ──────────────────────────────────────────────────────────────────────────────
