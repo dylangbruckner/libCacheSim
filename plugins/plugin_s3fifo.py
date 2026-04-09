@@ -65,7 +65,7 @@ class S3FIFOCache:
         obj_id = req.obj_id
         if obj_id in self.obj_info:
             sz, freq = self.obj_info[obj_id]
-            self.obj_info[obj_id] = (sz, min(freq + 1, 3))  # cap at 3
+            self.obj_info[obj_id] = (sz, min(freq + 1, 7))  # cap at 7; small resets to 0 on promotion
 
     def on_miss(self, req: Request):
         obj_id = req.obj_id

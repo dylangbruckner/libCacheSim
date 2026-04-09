@@ -175,3 +175,25 @@ s3fifoo with 11% small cache and 400% ghost cache: 76 points
 /data/course_traces/trace_8.lcs.zst s3fifo cache size 32254, 2288064 req, miss ratio 0.5442, byte miss ratio 0.5442
 /data/course_traces/trace_9.lcs.zst s3fifo cache size 7164, 3354127 req, miss ratio 0.7174, byte miss ratio 0.7174
 /data/course_traces/trace_9.lcs.zst s3fifo cache size 71647, 3354127 req, miss ratio 0.3767, byte miss ratio 0.3767
+
+plugin_mas3_fifo.py with base charecteristics: 64 points
+/data/course_traces/trace_0.lcs.zst s3fifo cache size 7027, 1974971 req, miss ratio 0.6805, byte miss ratio 0.6805
+/data/course_traces/trace_0.lcs.zst s3fifo cache size 70273, 1974971 req, miss ratio 0.4578, byte miss ratio 0.4578
+/data/course_traces/trace_1.lcs.zst s3fifo cache size 1241, 3335779 req, miss ratio 0.7413, byte miss ratio 0.7413
+/data/course_traces/trace_1.lcs.zst s3fifo cache size 12414, 3335779 req, miss ratio 0.6568, byte miss ratio 0.6568
+/data/course_traces/trace_2.lcs.zst s3fifo cache size 3762, 4764142 req, miss ratio 0.7300, byte miss ratio 0.7300
+/data/course_traces/trace_2.lcs.zst s3fifo cache size 37627, 4764142 req, miss ratio 0.6987, byte miss ratio 0.6987
+/data/course_traces/trace_3.lcs.zst s3fifo cache size 728, 1151864 req, miss ratio 0.5899, byte miss ratio 0.5899
+/data/course_traces/trace_3.lcs.zst s3fifo cache size 7282, 1151864 req, miss ratio 0.5435, byte miss ratio 0.5435
+/data/course_traces/trace_4.lcs.zst s3fifo cache size 4263, 4901223 req, miss ratio 0.4218, byte miss ratio 0.4218
+/data/course_traces/trace_4.lcs.zst s3fifo cache size 42632, 4901223 req, miss ratio 0.3738, byte miss ratio 0.3738
+/data/course_traces/trace_5.lcs.zst s3fifo cache size 4915, 5318502 req, miss ratio 0.7518, byte miss ratio 0.7518
+/data/course_traces/trace_5.lcs.zst s3fifo cache size 49156, 5318502 req, miss ratio 0.1993, byte miss ratio 0.1993
+/data/course_traces/trace_6.lcs.zst s3fifo cache size 7555, 5954974 req, miss ratio 0.6319, byte miss ratio 0.6319
+/data/course_traces/trace_6.lcs.zst s3fifo cache size 75551, 5954974 req, miss ratio 0.3724, byte miss ratio 0.3724
+/data/course_traces/trace_7.lcs.zst s3fifo cache size 1646, 9388362 req, miss ratio 0.7610, byte miss ratio 0.7610
+/data/course_traces/trace_7.lcs.zst s3fifo cache size 16460, 9388362 req, miss ratio 0.0932, byte miss ratio 0.0932
+/data/course_traces/trace_8.lcs.zst s3fifo cache size 3225, 2288064 req, miss ratio 0.7544, byte miss ratio 0.7544
+/data/course_traces/trace_8.lcs.zst s3fifo cache size 32254, 2288064 req, miss ratio 0.7201, byte miss ratio 0.7201
+/data/course_traces/trace_9.lcs.zst s3fifo cache size 7164, 3354127 req, miss ratio 0.7157, byte miss ratio 0.7157
+/data/course_traces/trace_9.lcs.zst s3fifo cache size 71647, 3354127 req, miss ratio 0.3885, byte miss ratio 0.3885

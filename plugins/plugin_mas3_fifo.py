@@ -24,7 +24,7 @@ from libcachesim import CommonCacheParams, Request
 
 # ── tunables ─────────────────────────────────────────────────────────────────
 SMALL_RATIO  = 0.11   # fraction of cache for small queue
-GHOST_RATIO  = 10.0   # ghost entries relative to cache_size (object-count proxy)
+GHOST_RATIO  = 12.0   # ghost entries relative to cache_size (object-count proxy)
 #                       Set high because real workloads benefit from large ghost.
 #                       On Zipf this hurts slightly vs 1x, but course traces
 #                       have shown consistent improvement up to 4-10x.
